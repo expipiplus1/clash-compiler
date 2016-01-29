@@ -46,7 +46,6 @@ import           CLaSH.Core.Type                  (LitTy (..), Type (..),
                                                    mkFunTy, mkTyConApp,
                                                    splitFunForallTy)
 import           CLaSH.Core.TyCon                 (TyConName, tyConDataCons)
-import           CLaSH.Core.TysPrim               (typeNatKind)
 import           CLaSH.Core.Util                  (appendToVec, extractElems,
                                                    idToVar, mkApps, mkVec,
                                                    termType)
@@ -288,19 +287,10 @@ reduceDFold n aTy fun start arg = do
     let (TyConApp snatTcNm _) = coreView tcm snTy
         (Just snatTc)         = HashMap.lookup snatTcNm tcm
         [snatDc]              = tyConDataCons snatTc
-
-        ([_nTv,_kn,Right pTy],_) = splitFunForallTy (dcType snatDc)
-        (TyConApp proxyTcNm _)   = coreView tcm pTy
-        (Just proxyTc)           = HashMap.lookup proxyTcNm tcm
-        [proxyDc]                = tyConDataCons proxyTc
-
         buildSNat i = mkApps (Prim (pack (name2String (dcName snatDc)))
                                    (dcType snatDc))
                              [Right (LitTy (NumTy i))
                              ,Left (Literal (IntegerLiteral (toInteger i)))
-                             ,Left (mkApps (Data proxyDc)
-                                           [Right typeNatKind
-                                           ,Right (LitTy (NumTy i))])
                              ]
         lbody = doFold buildSNat (n-1) vars
         lb    = Letrec (bind (rec (init elems)) lbody)
