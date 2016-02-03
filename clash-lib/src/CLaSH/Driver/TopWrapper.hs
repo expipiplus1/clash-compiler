@@ -125,6 +125,17 @@ mkInput nms (i,hwty) cnt = case hwty of
         netdecl  = NetDecl iName hwty
         netassgn = Assignment iName (mkVectorChain sz hwty' ids)
     in  (nms',(ports',(netdecl:decls' ++ [netassgn],iName)))
+  RTree d hwty' ->
+    let (nms',(ports',(decls',ids)))
+                 = second ( (concat *** (first concat . unzip))
+                          . unzip
+                          )
+                 $ mapAccumL
+                    (\nm c -> mkInput nm (iName,hwty') c)
+                    nms [0..((2^d)-1)]
+        netdecl  = NetDecl iName hwty
+        netassgn = Assignment iName (mkRTreeChain d hwty' ids)
+    in  (nms',(ports',(netdecl:decls' ++ [netassgn],iName)))
   Product _ hwtys ->
     let (nms',(ports',(decls',ids)))
                  = second ( (concat *** (first concat . unzip))
@@ -156,6 +167,20 @@ mkVectorChain sz elTy (i:is) = DataCon (Vector sz elTy) VecAppend
                                 [ Identifier i Nothing
                                 , mkVectorChain (sz-1) elTy is
                                 ]
+
+-- | Create a RTree chain for a list of 'Identifier's
+mkRTreeChain :: Int
+             -> HWType
+             -> [Identifier]
+             -> Expr
+mkRTreeChain _ elTy [i] = DataCon (RTree 0 elTy) RTreeAppend
+                                  [Identifier i Nothing]
+mkRTreeChain d elTy is =
+  let (isL,isR) = splitAt (length is `div` 2) is
+  in  DataCon (RTree d elTy) RTreeAppend
+        [ mkRTreeChain (d-1) elTy isL
+        , mkRTreeChain (d-1) elTy isR
+        ]
 
 -- | Generate output port mappings
 mkOutput :: [Identifier]

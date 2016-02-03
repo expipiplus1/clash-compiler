@@ -121,12 +121,14 @@ mkTyPackage_ modName hwtys = (:[]) A.<$> (modName ++ "_types",) A.<$>
 
     eqReprTy :: HWType -> HWType -> Bool
     eqReprTy (Vector n ty1) (Vector m ty2)  = n == m && eqReprTy ty1 ty2
+    eqReprTy (RTree n ty1) (RTree m ty2)  = n == m && eqReprTy ty1 ty2
     eqReprTy ty1 ty2
       | isUnsigned ty1 && isUnsigned ty2 ||
         isSLV ty1 && isSLV ty2              = typeSize ty1 == typeSize ty2
       | otherwise                           = ty1 == ty2
 
     eqTypM (Vector n ty1) (Vector m ty2) = n == m && eqReprTy ty1 ty2
+    eqTypM (RTree n ty1) (RTree m ty2) = n == m && eqReprTy ty1 ty2
     eqTypM (Signed _) (Signed _) = True
     eqTypM ty1 ty2 = isUnsigned ty1 && isUnsigned ty2 ||
                      isSLV      ty1 && isSLV      ty2 ||
@@ -146,6 +148,7 @@ mkTyPackage_ modName hwtys = (:[]) A.<$> (modName ++ "_types",) A.<$>
 mkUsedTys :: HWType
         -> [HWType]
 mkUsedTys v@(Vector _ elTy)   = v : mkUsedTys elTy
+mkUsedTys v@(RTree _ elTy)    = v : mkUsedTys elTy
 mkUsedTys p@(Product _ elTys) = p : concatMap mkUsedTys elTys
 mkUsedTys sp@(SP _ elTys)     = sp : concatMap mkUsedTys (concatMap snd elTys)
 mkUsedTys t                   = [t]
@@ -162,6 +165,8 @@ topSortHWTys hwtys = sorted
 
     edge t@(Vector _ elTy) = maybe [] ((:[]) . (HashMap.lookupDefault (error $ $(curLoc) ++ "Vector") t nodesI,,()))
                                       (HashMap.lookup (mkVecZ elTy) nodesI)
+    edge t@(RTree _ elTy)  = maybe [] ((:[]) . (HashMap.lookupDefault (error $ $(curLoc) ++ "RTree") t nodesI,,()))
+                                      (HashMap.lookup (mkVecZ elTy) nodesI)
     edge t@(Product _ tys) = let ti = HashMap.lookupDefault (error $ $(curLoc) ++ "Product") t nodesI
                              in mapMaybe (\ty -> liftM (ti,,()) (HashMap.lookup (mkVecZ ty) nodesI)) tys
     edge t@(SP _ ctys)     = let ti = HashMap.lookupDefault (error $ $(curLoc) ++ "SP") t nodesI
@@ -170,10 +175,13 @@ topSortHWTys hwtys = sorted
 
 mkVecZ :: HWType -> HWType
 mkVecZ (Vector _ elTy) = Vector 0 elTy
+mkVecZ (RTree _ elTy)  = RTree 0 elTy
 mkVecZ t               = t
 
 tyDec :: HWType -> VHDLM Doc
 tyDec (Vector _ elTy) = "type" <+> "array_of_" <> tyName elTy <+> "is array (integer range <>) of" <+> vhdlType elTy <> semi
+
+tyDec (RTree _ elTy) = "type" <+> "tree_of_" <> tyName elTy <+> "is array (integer range <>) of" <+> vhdlType elTy <> semi
 
 tyDec ty@(Product _ tys) = prodDec
   where
@@ -239,6 +247,27 @@ funDec t@(Product _ elTys) = Just
                             parens ("p." <> vhdlType t <> "_sel" <> int i))
 
 funDec t@(Vector _ elTy) = Just
+  ( "function" <+> "toSLV" <+> parens ("value : " <+> vhdlTypeMark t) <+> "return std_logic_vector" <> semi
+  , "function" <+> "toSLV" <+> parens ("value : " <+> vhdlTypeMark t) <+> "return std_logic_vector" <+> "is" <$>
+      indent 2
+        ( "alias ivalue    :" <+> vhdlTypeMark t <> "(1 to value'length) is value;" <$>
+          "variable result :" <+> "std_logic_vector" <> parens ("1 to value'length * " <> int (typeSize elTy)) <> semi
+        ) <$>
+    "begin" <$>
+      indent 2
+        ("for i in ivalue'range loop" <$>
+            indent 2
+              (  "result" <> parens (parens ("(i - 1) * " <> int (typeSize elTy)) <+> "+ 1" <+>
+                                             "to i*" <> int (typeSize elTy)) <+>
+                          ":=" <+> "toSLV" <> parens ("ivalue" <> parens ("i")) <> semi
+              ) <$>
+         "end" <+> "loop" <> semi <$>
+         "return" <+> "result" <> semi
+        ) <$>
+    "end" <> semi
+  )
+
+funDec t@(RTree _ elTy) = Just
   ( "function" <+> "toSLV" <+> parens ("value : " <+> vhdlTypeMark t) <+> "return std_logic_vector" <> semi
   , "function" <+> "toSLV" <+> parens ("value : " <+> vhdlTypeMark t) <+> "return std_logic_vector" <+> "is" <$>
       indent 2
@@ -344,6 +373,7 @@ vhdlType' (Signed n)      = if n == 0 then "signed (0 downto 1)"
 vhdlType' (Unsigned n)    = if n == 0 then "unsigned (0 downto 1)"
                                       else "unsigned" <> parens ( int (n-1) <+> "downto 0")
 vhdlType' (Vector n elTy) = "array_of_" <> tyName elTy <> parens ("0 to " <> int (n-1))
+vhdlType' (RTree d elTy)  = "tree_of_" <> tyName elTy <> parens ("0 to " <> int ((2^d)-1))
 vhdlType' t@(SP _ _)      = "std_logic_vector" <> parens (int (typeSize t - 1) <+> "downto 0")
 vhdlType' t@(Sum _ _)     = case typeSize t of
                               0 -> "unsigned (0 downto 1)"
@@ -369,6 +399,7 @@ vhdlTypeMark hwty = do
     vhdlTypeMark' (Signed _)      = "signed"
     vhdlTypeMark' (Unsigned _)    = "unsigned"
     vhdlTypeMark' (Vector _ elTy) = "array_of_" <> tyName elTy
+    vhdlTypeMark' (RTree _ elTy)  = "tree_of_" <> tyName elTy
     vhdlTypeMark' (SP _ _)        = "std_logic_vector"
     vhdlTypeMark' (Sum _ _)       = "unsigned"
     vhdlTypeMark' t@(Product _ _) = tyName t
@@ -379,6 +410,7 @@ tyName Bool              = "boolean"
 tyName (Clock _ _)       = "std_logic"
 tyName (Reset _ _)       = "std_logic"
 tyName (Vector n elTy)   = "array_of_" <> int n <> "_" <> tyName elTy
+tyName (RTree n elTy)    = "tree_of_" <> int n <> "_" <> tyName elTy
 tyName (BitVector n)     = "std_logic_vector_" <> int n
 tyName t@(Index _)       = "unsigned_" <> int (typeSize t)
 tyName (Signed n)        = "signed_" <> int n
@@ -399,6 +431,7 @@ vhdlTypeErrValue (Index _)           = "(others => 'X')"
 vhdlTypeErrValue (Signed _)          = "(others => 'X')"
 vhdlTypeErrValue (Unsigned _)        = "(others => 'X')"
 vhdlTypeErrValue (Vector _ elTy)     = parens ("others" <+> rarrow <+> vhdlTypeErrValue elTy)
+vhdlTypeErrValue (RTree _ elTy)      = parens ("others" <+> rarrow <+> vhdlTypeErrValue elTy)
 vhdlTypeErrValue (SP _ _)            = "(others => 'X')"
 vhdlTypeErrValue (Sum _ _)           = "(others => 'X')"
 vhdlTypeErrValue (Product _ elTys)   = tupled $ mapM vhdlTypeErrValue elTys
@@ -485,6 +518,15 @@ expr_ _ (Identifier id_ (Just (Indexed (ty@(Product _ _),_,fI)))) = text id_ <> 
 expr_ _ (Identifier id_ (Just (Indexed ((Vector _ _),1,1)))) = text id_ <> parens (int 0)
 expr_ _ (Identifier id_ (Just (Indexed ((Vector n _),1,2)))) = text id_ <> parens (int 1 <+> "to" <+> int (n-1))
 
+expr_ _ (Identifier id_ (Just (Indexed ((RTree 0 _),0,1)))) = text id_ <> parens (int 0)
+expr_ _ (Identifier id_ (Just (Indexed ((RTree n _),1,1)))) =
+  let z = 2^(n-1)
+  in  text id_ <> parens (int 0 <+> "to" <+> int (z-1))
+expr_ _ (Identifier id_ (Just (Indexed ((RTree n _),1,2)))) =
+  let z  = 2^(n-1)
+      z' = 2^n
+  in  text id_ <> parens (int z <+> "to" <+> int (z'-1))
+
 -- This is a HACK for CLaSH.Driver.TopWrapper.mkOutput
 -- Vector's don't have a 10'th constructor, this is just so that we can
 -- recognize the particular case
@@ -511,6 +553,15 @@ expr_ _ (DataCon ty@(Vector 1 _) _ [e])          = vhdlTypeMark ty <> "'" <> par
 expr_ _ e@(DataCon ty@(Vector _ elTy) _ [e1,e2]) = vhdlTypeMark ty <> "'" <> case vectorChain e of
                                                     Just es -> tupled (mapM (expr_ False) es)
                                                     Nothing -> parens (vhdlTypeMark elTy <> "'" <> parens (expr_ False e1) <+> "&" <+> expr_ False e2)
+
+expr_ _ (DataCon ty@(RTree 0 _) _ [e]) =
+  vhdlTypeMark ty <> "'" <> parens (int 0 <+> rarrow <+> expr_ False e)
+expr_ _ e@(DataCon ty@(RTree d elTy) _ [e1,e2]) =
+  vhdlTypeMark ty <> "'" <> case rtreeChain e of
+    Just es -> tupled (mapM (expr_ False) es)
+    Nothing -> parens (vhdlTypeMark (RTree (d-1) elTy) <> "'" <> parens (expr_ False e1) <+>
+                       "&" <+> expr_ False e2)
+
 expr_ _ (DataCon ty@(SP _ args) (DC (_,i)) es) = assignExpr
   where
     argTys     = snd $ args !! i
@@ -603,6 +654,11 @@ vectorChain (DataCon (Vector 0 _) _ _)        = Just []
 vectorChain (DataCon (Vector 1 _) _ [e])     = Just [e]
 vectorChain (DataCon (Vector _ _) _ [e1,e2]) = Just e1 <:> vectorChain e2
 vectorChain _                                       = Nothing
+
+rtreeChain :: Expr -> Maybe [Expr]
+rtreeChain (DataCon (RTree 1 _) _ [e])     = Just [e]
+rtreeChain (DataCon (RTree _ _) _ [e1,e2]) = A.liftA2 (++) (rtreeChain e1) (rtreeChain e2)
+rtreeChain _ = Nothing
 
 exprLit :: Maybe (HWType,Size) -> Literal -> VHDLM Doc
 exprLit Nothing (NumLit i) = integer i

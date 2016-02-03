@@ -26,7 +26,8 @@ import           CLaSH.Core.Type     (Type (..), ConstTy (..), LitTy (..),
                                       mkTyConApp, splitFunForallTy)
 import           CLaSH.Core.TyCon    (TyCon, TyConName, tyConDataCons)
 import           CLaSH.Core.TysPrim  (typeNatKind)
-import           CLaSH.Core.Util     (collectArgs,mkApps,mkVec,termType,tyNatSize)
+import           CLaSH.Core.Util     (collectArgs,mkApps,mkRTree,mkVec,termType,
+                                      tyNatSize)
 import           CLaSH.Core.Var      (Var (..))
 
 reduceConstant :: HashMap.HashMap TyConName TyCon -> Bool -> Term -> Term
@@ -281,6 +282,14 @@ reduceConstant tcm isSubj e@(collectArgs -> (Prim nm ty, args))
             [intCon] = tyConDataCons intTc
         in  mkApps (Data intCon) [Left (Literal (IntegerLiteral (toInteger n)))]
       _ -> e
+  | isSubj && nm == "CLaSH.Sized.RTree.treplicate"
+  = let ty' = runFreshM (termType tcm e)
+    in  case tyView ty' of
+          (TyConApp treeTcNm [LitTy (NumTy len),argTy]) ->
+              let (Just treeTc) = HashMap.lookup treeTcNm tcm
+                  [lrCon,brCon] = tyConDataCons treeTc
+              in  mkRTree lrCon brCon argTy len (replicate (2^len) (last $ Either.lefts args))
+          _ -> e
 
 reduceConstant _ _ e = e
 
