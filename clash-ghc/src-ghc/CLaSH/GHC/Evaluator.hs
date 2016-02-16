@@ -9,6 +9,7 @@
 
 module CLaSH.GHC.Evaluator where
 
+import           Control.Monad.Trans.Except (runExcept)
 import qualified Data.Bifunctor      as Bifunctor
 import           Data.Bits           (shiftL,shiftR)
 import qualified Data.Either         as Either
@@ -25,7 +26,7 @@ import           CLaSH.Core.Type     (Type (..), ConstTy (..), LitTy (..),
                                       mkTyConApp, splitFunForallTy)
 import           CLaSH.Core.TyCon    (TyCon, TyConName, tyConDataCons)
 import           CLaSH.Core.TysPrim  (typeNatKind)
-import           CLaSH.Core.Util     (collectArgs,mkApps,mkVec,termType)
+import           CLaSH.Core.Util     (collectArgs,mkApps,mkVec,termType,tyNatSize)
 import           CLaSH.Core.Var      (Var (..))
 
 reduceConstant :: HashMap.HashMap TyConName TyCon -> Bool -> Term -> Term
@@ -203,6 +204,48 @@ reduceConstant tcm isSubj e@(collectArgs -> (Prim nm ty, args))
   = case (map (reduceConstant tcm isSubj) . Either.lefts) args of
       [Literal (IntegerLiteral i), _] -> Literal (IntegerLiteral i)
       _ -> e
+  | nm == "CLaSH.Promoted.Nat.addSNat"
+  = case (map (runExcept . tyNatSize tcm) . Either.rights) args of
+    [Right a, Right b] ->
+      let c = a + b
+          (_,tyView -> TyConApp snatTcNm _) = splitFunForallTy ty
+          (Just snatTc) = HashMap.lookup snatTcNm tcm
+          [snatDc] = tyConDataCons snatTc
+      in  mkApps (Data snatDc) [Right (LitTy (NumTy c)), Left (Literal (IntegerLiteral (toInteger c)))]
+    _ -> e
+  | nm == "CLaSH.Promoted.Nat.subSNat"
+  = case (map (runExcept . tyNatSize tcm) . Either.rights) args of
+    [Right a, _] ->
+      let (_,tyView -> TyConApp snatTcNm _) = splitFunForallTy ty
+          (Just snatTc) = HashMap.lookup snatTcNm tcm
+          [snatDc] = tyConDataCons snatTc
+      in  mkApps (Data snatDc) [Right (LitTy (NumTy a)), Left (Literal (IntegerLiteral (toInteger a)))]
+    _ -> e
+  | nm == "CLaSH.Promoted.Nat.mulSNat"
+  = case (map (runExcept . tyNatSize tcm) . Either.rights) args of
+    [Right a, Right b] ->
+      let c = a * b
+          (_,tyView -> TyConApp snatTcNm _) = splitFunForallTy ty
+          (Just snatTc) = HashMap.lookup snatTcNm tcm
+          [snatDc] = tyConDataCons snatTc
+      in  mkApps (Data snatDc) [Right (LitTy (NumTy c)), Left (Literal (IntegerLiteral (toInteger c)))]
+    _ -> e
+  | nm == "CLaSH.Promoted.Nat.divSNat"
+  = case (map (runExcept . tyNatSize tcm) . Either.rights) args of
+    [Right a, _] ->
+      let (_,tyView -> TyConApp snatTcNm _) = splitFunForallTy ty
+          (Just snatTc) = HashMap.lookup snatTcNm tcm
+          [snatDc] = tyConDataCons snatTc
+      in  mkApps (Data snatDc) [Right (LitTy (NumTy a)), Left (Literal (IntegerLiteral (toInteger a)))]
+    _ -> e
+  | nm == "CLaSH.Promoted.Nat.logBaseSNat"
+  = case (map (runExcept . tyNatSize tcm) . Either.rights) args of
+    [_, Right b] ->
+      let (_,tyView -> TyConApp snatTcNm _) = splitFunForallTy ty
+          (Just snatTc) = HashMap.lookup snatTcNm tcm
+          [snatDc] = tyConDataCons snatTc
+      in  mkApps (Data snatDc) [Right (LitTy (NumTy b)), Left (Literal (IntegerLiteral (toInteger b)))]
+    _ -> e
   | isSubj && nm == "CLaSH.Sized.Vector.replicate"
   = let ty' = runFreshM (termType tcm e)
     in  case tyView ty' of
