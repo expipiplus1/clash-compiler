@@ -876,8 +876,8 @@ reduceConst _ e@(App _ _)
     tcm <- Lens.view tcCache
     reduceConstant <- Lens.view evaluator
     case reduceConstant tcm False e of
-      e'@(Data _)    -> changed e'
       e'@(Literal _) -> changed e'
+      e'@(collectArgs -> (Data _,_)) -> changed e'
       _              -> return e
 
 reduceConst _ e = return e
