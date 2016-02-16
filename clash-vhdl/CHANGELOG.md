@@ -1,5 +1,9 @@
 # Changelog for the [`clash-vhdl`](http://hackage.haskell.org/package/clash-vhdl) package
 
+## 0.6.8
+* New features:
+  * Support `clash-prelude` 0.10.7
+
 ## 0.6.7
 * Fixes bugs:
   * insufficient type-qualifiers for concatenation operator [#121](https://github.com/clash-lang/clash-compiler/issues/121)

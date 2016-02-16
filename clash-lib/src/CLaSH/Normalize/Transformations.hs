@@ -916,6 +916,7 @@ reduceConst _ e = return e
 -- * CLaSH.Sized.Vector.unconcat
 -- * CLaSH.Sized.Vector.transpose
 -- * CLaSH.Sized.Vector.replicate
+-- * CLaSH.Sized.Vector.dtfold
 reduceNonRepPrim :: NormRewrite
 reduceNonRepPrim _ e@(App _ _) | (Prim f _, args) <- collectArgs e = do
   tcm <- Lens.view tcCache
@@ -1031,7 +1032,11 @@ reduceNonRepPrim _ e@(App _ _) | (Prim f _, args) <- collectArgs e = do
                then reduceReplicate n aTy eTy vArg
                else return e
           _ -> return e
-
+      "CLaSH.Sized.Vector.dtfold" | length args == 8 ->
+        let ([_kn,_motive,lrFun,brFun,arg],[_mTy,nTy,aTy]) = Either.partitionEithers args
+        in  case runExcept (tyNatSize tcm nTy) of
+          Right n -> reduceDTFold n aTy lrFun brFun arg
+          _ -> return e
       _ -> return e
 
 reduceNonRepPrim _ e = return e

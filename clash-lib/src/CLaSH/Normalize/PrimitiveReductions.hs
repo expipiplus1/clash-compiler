@@ -18,6 +18,7 @@
     * CLaSH.Sized.Vector.tail
     * CLaSH.Sized.Vector.unconcatBitVector#
     * CLaSH.Sized.Vector.replicate
+    * CLaSH.Sized.Vector.dtfold
 
   Partially handles:
 
@@ -411,3 +412,45 @@ reduceReplicate n aTy eTy arg = do
       [nilCon,consCon] = tyConDataCons vecTc
       retVec = mkVec nilCon consCon aTy n (replicate n arg)
   changed retVec
+
+-- | Replace an application of the @CLaSH.Sized.Vector.dtfold@ primitive on
+-- vectors of a known length @n@, by the fully unrolled recursive "definition"
+-- of @CLaSH.Sized.Vector.dtfold@
+reduceDTFold :: Int  -- ^ Length of the vector
+             -> Type -- ^ Element type of the argument vector
+             -> Term -- ^ Function to convert elements with
+             -> Term -- ^ Function to combine branches with
+             -> Term -- ^ The vector to fold
+             -> NormalizeSession Term
+reduceDTFold n aTy lrFun brFun arg = do
+    tcm <- Lens.view tcCache
+    (TyConApp vecTcNm _) <- coreView tcm <$> termType tcm arg
+    let (Just vecTc)     = HashMap.lookup vecTcNm tcm
+        [_,consCon]      = tyConDataCons vecTc
+        (vars,elems)     = second concat . unzip
+                         $ extractElems consCon aTy 'T' (2^n) arg
+    (_ltv:Right snTy:_,_) <- splitFunForallTy <$> termType tcm brFun
+    let (TyConApp snatTcNm _) = coreView tcm snTy
+        (Just snatTc)         = HashMap.lookup snatTcNm tcm
+        [snatDc]              = tyConDataCons snatTc
+        buildSNat i = mkApps (Prim (pack (name2String (dcName snatDc)))
+                                   (dcType snatDc))
+                             [Right (LitTy (NumTy i))
+                             ,Left (Literal (IntegerLiteral (toInteger i)))
+                             ]
+        lbody = doFold buildSNat (n-1) vars
+        lb    = Letrec (bind (rec (init elems)) lbody)
+    changed lb
+  where
+    doFold :: (Int -> Term) -> Int -> [Term] -> Term
+    doFold _    _ [x] = mkApps lrFun [Left x]
+    doFold snDc k xs  =
+      let (xsL,xsR) = splitAt (2^k) xs
+          k'        = k-1
+          eL        = doFold snDc k' xsL
+          eR        = doFold snDc k' xsR
+      in  mkApps brFun [Right (LitTy (NumTy k))
+                       ,Left  (snDc k)
+                       ,Left  eL
+                       ,Left  eR
+                       ]
