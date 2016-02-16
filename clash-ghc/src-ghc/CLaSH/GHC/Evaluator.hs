@@ -203,10 +203,6 @@ reduceConstant tcm isSubj e@(collectArgs -> (Prim nm ty, args))
   = case (map (reduceConstant tcm isSubj) . Either.lefts) args of
       [Literal (IntegerLiteral i), _] -> Literal (IntegerLiteral i)
       _ -> e
-  | nm == "CLaSH.Promoted.Nat.SNat"
-  = case (map collectArgs . Either.lefts) args of
-      [(Literal (IntegerLiteral _),[])] -> mkApps snatCon args
-      _ -> e
   | isSubj && nm == "CLaSH.Sized.Vector.replicate"
   = let ty' = runFreshM (termType tcm e)
     in  case tyView ty' of
@@ -255,13 +251,3 @@ unsignedConPrim = Prim "CLaSH.Sized.Internal.Unsigned.fromInteger#" (ForAllTy (b
     nName        = string2Name "n"
     nVar         = VarTy typeNatKind nName
     nTV          = TyVar nName (embed typeNatKind)
-
-snatCon :: Term
-snatCon = Data (MkData snanNm 1 snatTy [nName] [] argTys)
-  where
-    snanNm = string2Name "CLaSH.Promoted.Nat.SNat"
-    snatTy = ForAllTy (bind nTV funTy)
-    argTys = [ConstTy (TyCon (string2Name "GHC.Integer.Type.Integer"))]
-    funTy  = foldr mkFunTy (ConstTy (TyCon (string2Name "CLaSH.Promoted.Nat.SNat"))) argTys
-    nName  = string2Name "n"
-    nTV    = TyVar nName (embed typeNatKind)

@@ -1,16 +1,4 @@
 [ { "BlackBox" :
-    { "name"      : "CLaSH.Promoted.Nat.SNat"
-    , "type"      : "SNat :: KnownNat n => Proxy n -> SNat n"
-    , "templateE" : "~LIT[0]"
-    }
-  }
-, { "BlackBox" :
-    { "name"      : "CLaSH.Promoted.Nat.snatToInteger"
-    , "type"      : "snatToInteger :: SNat n -> Integer"
-    , "templateE" : "~ARG[0]"
-    }
-  }
-, { "BlackBox" :
     { "name"      : "CLaSH.Promoted.Nat.addSNat"
     , "type"      : "CLaSH.Promoted.Nat.addSNat :: SNat a -> SNat b -> SNat (a + b)"
     , "templateE" : "~LIT[0] + ~LIT[1]"

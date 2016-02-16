@@ -288,8 +288,7 @@ reduceDFold n aTy fun start arg = do
     let (TyConApp snatTcNm _) = coreView tcm snTy
         (Just snatTc)         = HashMap.lookup snatTcNm tcm
         [snatDc]              = tyConDataCons snatTc
-        buildSNat i = mkApps (Prim (pack (name2String (dcName snatDc)))
-                                   (dcType snatDc))
+        buildSNat i = mkApps (Data snatDc)
                              [Right (LitTy (NumTy i))
                              ,Left (Literal (IntegerLiteral (toInteger i)))
                              ]
@@ -433,8 +432,7 @@ reduceDTFold n aTy lrFun brFun arg = do
     let (TyConApp snatTcNm _) = coreView tcm snTy
         (Just snatTc)         = HashMap.lookup snatTcNm tcm
         [snatDc]              = tyConDataCons snatTc
-        buildSNat i = mkApps (Prim (pack (name2String (dcName snatDc)))
-                                   (dcType snatDc))
+        buildSNat i = mkApps (Data snatDc)
                              [Right (LitTy (NumTy i))
                              ,Left (Literal (IntegerLiteral (toInteger i)))
                              ]
