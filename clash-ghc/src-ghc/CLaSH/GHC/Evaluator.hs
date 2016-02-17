@@ -238,6 +238,15 @@ reduceConstant tcm isSubj e@(collectArgs -> (Prim nm ty, args))
           [snatDc] = tyConDataCons snatTc
       in  mkApps (Data snatDc) [Right (LitTy (NumTy a)), Left (Literal (IntegerLiteral (toInteger a)))]
     _ -> e
+  | nm == "CLaSH.Promoted.Nat.powSNat"
+  = case (map (runExcept . tyNatSize tcm) . Either.rights) args of
+    [Right a, Right b] ->
+      let c = a ^ b
+          (_,tyView -> TyConApp snatTcNm _) = splitFunForallTy ty
+          (Just snatTc) = HashMap.lookup snatTcNm tcm
+          [snatDc] = tyConDataCons snatTc
+      in  mkApps (Data snatDc) [Right (LitTy (NumTy c)), Left (Literal (IntegerLiteral (toInteger c)))]
+    _ -> e
   | nm == "CLaSH.Promoted.Nat.logBaseSNat"
   = case (map (runExcept . tyNatSize tcm) . Either.rights) args of
     [_, Right b] ->
