@@ -9,7 +9,7 @@ packages:
 - 'testsuite'
 - location:
     git: https://github.com/clash-lang/clash-prelude.git
-    commit: bce239c92eec42a5168aff6d5691f401e2beeb86
+    commit: 4941b5795a4a8c9d15e0a82bdb82f1d8a65ee851
 - location:
     git: https://github.com/clash-lang/ghc-typelits-natnormalise.git
     commit: 914cda2d25dc18f8a6d9ce0d88f34fc498085ff9

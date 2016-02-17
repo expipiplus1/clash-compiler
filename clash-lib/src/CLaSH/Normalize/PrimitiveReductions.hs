@@ -35,12 +35,10 @@ module CLaSH.Normalize.PrimitiveReductions where
 import qualified Control.Lens                     as Lens
 import qualified Data.HashMap.Lazy                as HashMap
 import qualified Data.Maybe                       as Maybe
-import           Data.Text                        (pack)
 import           Unbound.Generics.LocallyNameless (bind, embed, rec, rebind,
-                                                   string2Name, name2String)
+                                                   string2Name)
 
-import           CLaSH.Core.DataCon               (DataCon, dataConInstArgTys,
-                                                   dcName, dcType)
+import           CLaSH.Core.DataCon               (DataCon, dataConInstArgTys)
 import           CLaSH.Core.Literal               (Literal (..))
 import           CLaSH.Core.Term                  (Term (..), Pat (..))
 import           CLaSH.Core.Type                  (LitTy (..), Type (..),
@@ -455,9 +453,9 @@ reduceDTFold n aTy lrFun brFun arg = do
                        ,Left  eR
                        ]
 
--- | Replace an application of the @CLaSH.Sized.RTree.tfold@ primitive on
+-- | Replace an application of the @CLaSH.Sized.RTree.tdfold@ primitive on
 -- trees of a known depth @n@, by the fully unrolled recursive "definition"
--- of @CLaSH.Sized.RTree.tfold@
+-- of @CLaSH.Sized.RTree.tdfold@
 reduceTFold :: Int  -- ^ Depth of the tree
             -> Type -- ^ Element type of the argument tree
             -> Term -- ^ Function to convert elements with
@@ -470,7 +468,7 @@ reduceTFold n aTy lrFun brFun arg = do
     let (Just treeTc)    = HashMap.lookup treeTcNm tcm
         [lrCon,brCon]    = tyConDataCons treeTc
         (vars,elems)     = extractTElems lrCon brCon aTy 'T' n arg
-    ([_ltv,Right snTy,_etaTy,_eta1Ty],_) <- splitFunForallTy <$> termType tcm brFun
+    (_ltv:Right snTy:_,_) <- splitFunForallTy <$> termType tcm brFun
     let (TyConApp snatTcNm _) = coreView tcm snTy
         (Just snatTc)         = HashMap.lookup snatTcNm tcm
         [snatDc]              = tyConDataCons snatTc

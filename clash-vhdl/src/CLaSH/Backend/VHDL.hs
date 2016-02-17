@@ -532,6 +532,11 @@ expr_ _ (Identifier id_ (Just (Indexed ((RTree n _),1,2)))) =
 -- recognize the particular case
 expr_ _ (Identifier id_ (Just (Indexed ((Vector _ _),10,fI)))) = text id_ <> parens (int fI)
 
+-- This is a HACK for CLaSH.Driver.TopWrapper.mkOutput
+-- RTree's don't have a 10'th constructor, this is just so that we can
+-- recognize the particular case
+expr_ _ (Identifier id_ (Just (Indexed ((RTree _ _),10,fI)))) = text id_ <> parens (int fI)
+
 expr_ _ (Identifier id_ (Just (DC (ty@(SP _ _),_)))) = text id_ <> parens (int start <+> "downto" <+> int end)
   where
     start = typeSize ty - 1

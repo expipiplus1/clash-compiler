@@ -209,6 +209,21 @@ mkOutput nms (i,hwty) cnt = case hwty of
                     ids
                     [0..]
     in  (nms',(ports',(netdecl:assigns ++ decls',iName)))
+  RTree d hwty' ->
+    let (nms',(ports',(decls',ids)))
+                 = second ( (concat *** (first concat . unzip))
+                          . unzip
+                          )
+                 $ mapAccumL
+                    (\nm c -> mkOutput nm (iName,hwty') c)
+                    nms [0..((2^d)-1)]
+        netdecl  = NetDecl iName hwty
+        assigns = zipWith
+                    (\id_ n -> Assignment id_
+                                 (Identifier iName (Just (Indexed (hwty,10,n)))))
+                    ids
+                    [0..]
+    in  (nms',(ports',(netdecl:assigns ++ decls',iName)))
   Product _ hwtys ->
     let (nms',(ports',(decls',ids)))
                 = second ( (concat *** (first concat . unzip))
