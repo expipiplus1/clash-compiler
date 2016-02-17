@@ -1036,7 +1036,7 @@ reduceNonRepPrim _ e@(App _ _) | (Prim f _, args) <- collectArgs e = do
         let ([_kn,_motive,lrFun,brFun,arg],[_mTy,nTy,aTy]) = Either.partitionEithers args
         in  case runExcept (tyNatSize tcm nTy) of
           Right n -> reduceDTFold n aTy lrFun brFun arg
-      "CLaSH.Sized.RTree.tfold" | length args == 8 ->
+      "CLaSH.Sized.RTree.tdfold" | length args == 8 ->
         let ([kn,_motive,lrFun,brFun,arg],[_mTy,nTy,aTy]) = Either.partitionEithers args
         in  case runExcept (tyNatSize tcm nTy) of
           Right n -> reduceTFold n aTy lrFun brFun arg
