@@ -125,7 +125,7 @@ generateHDL bindingsMap hdlState primMap tcm tupTcm typeTrans eval (topEntity,an
       hdlDocs = createHDL hdlState' modName (topWrapper : netlist ++ testBench)
       dir = fromMaybe "." (opt_hdlDir opts) </>
             CLaSH.Backend.name hdlState' </>
-            takeWhile (/= '.') (name2String topEntity)
+            name2String topEntity
   prepareDir (opt_cleanhdl opts) (extension hdlState') dir
   mapM_ (writeHDL hdlState' dir) hdlDocs
   copyDataFiles dir dfiles'
